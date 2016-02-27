@@ -306,6 +306,24 @@ var _ = require('./util');
 var factory = require('./creature.js');
 var display = require('./display.js');
 var dom = require('./dom.js');
+var knot = require('knot.js');
+
+
+/*
+Events:
+
+  grid
+  dead
+  end
+  step
+  beforeDraw
+  afterDraw
+  stop
+  destory
+
+*/
+
+
 
 /**
  * Terrarium constructor function
@@ -323,7 +341,7 @@ var dom = require('./dom.js');
 function Terrarium (width, height, options) {
   var cellSize, neighborhood;
 
-  // parse width and height as integers
+  // cast width and height to integers
   width = Math.ceil(width);
   height = Math.ceil(height);
 
@@ -343,6 +361,8 @@ function Terrarium (width, height, options) {
   this.nextFrame = false;
   this.hasChanged = false;
   this.getNeighborCoords = _.getNeighborCoordsFn(width, height, neighborhood === 'vonneumann', options.periodic);
+
+  this.knot = knot(this);
 }
 
 /**
@@ -365,7 +385,11 @@ Terrarium.prototype.makeGrid = function (content) {
         undefined
       ));
     }
-  } return grid;
+  }
+
+  this.knot.emit('grid', grid);
+
+  return grid;
 };
 
 /**
@@ -379,7 +403,11 @@ Terrarium.prototype.makeGridWithDistribution = function (distribution) {
     for (var y = 0, _h = this.height; y < _h; y++) {
       grid[x].push(factory.make(_.pickRandomWeighted(distribution)));
     }
-  } return grid;
+  }
+
+  this.knot.emit('grid', grid);
+
+  return grid;
 };
 
 /**
@@ -388,12 +416,20 @@ Terrarium.prototype.makeGridWithDistribution = function (distribution) {
  * @return {grid}     a new grid after <steps> || 1 steps
  */
 Terrarium.prototype.step = function (steps) {
+  var terrarium = this;
+  var totalDead = 0;
+
   function copyAndRemoveInner (origCreature) {
     if (origCreature) {
       var copy = _.assign(new (origCreature.constructor)(), origCreature);
       var dead = copy && copy.isDead();
       if (dead && !self.hasChanged) self.hasChanged = true;
       copy.age++;
+
+      if (dead) {
+        totalDead++;
+        terrarium.knot.emit('dead', copy);
+      }
 
       return !dead ? copy : false;
     } else return false;
@@ -503,8 +539,13 @@ Terrarium.prototype.step = function (steps) {
     // Choose a winner from each of the eigenGrid's superpositions
     _.each(eigenGrid, pickWinner);
 
-    if (!this.hasChanged) return false;
+    if (!this.hasChanged) {
+      this.knot.emit('end');
+      return false;
+    }
   }
+
+  this.knot.emit('step', totalDead);
 
   return newGrid;
 };
@@ -513,7 +554,11 @@ Terrarium.prototype.step = function (steps) {
  * Updates the canvas to reflect the current grid
  */
 Terrarium.prototype.draw = function () {
+  this.knot.emit('beforeDraw');
+
   display(this.canvas, this.grid, this.cellSize, this.trails, this.background);
+
+  this.knot.emit('afterDraw');
 };
 
 /**
@@ -551,6 +596,8 @@ Terrarium.prototype.animate = function (steps, fn) {
 Terrarium.prototype.stop = function () {
   cancelAnimationFrame(this.nextFrame);
   this.nextFrame = false;
+
+  this.knot.emit('stop');
 };
 
 /**
@@ -560,11 +607,13 @@ Terrarium.prototype.destroy = function () {
   var canvas = this.canvas;
   this.stop();
   canvas.parentNode.removeChild(canvas);
+
+  this.knot.emit('destroy');
 };
 
 module.exports = Terrarium;
 
-},{"./creature.js":2,"./display.js":3,"./dom.js":4,"./util":6}],6:[function(require,module,exports){
+},{"./creature.js":2,"./display.js":3,"./dom.js":4,"./util":6,"knot.js":9}],6:[function(require,module,exports){
 // Seed Math.random() with seedrandom
 require('../bower_components/seedrandom/seedrandom.js')('terra :)', {global: true});
 
@@ -1093,6 +1142,15 @@ try{bt.nodeClass=!(tt.call(document)==z&&!({toString:0}+""))}catch(o){bt.nodeCla
 },jt=p({a:"z",e:"[]",i:"if(!(B[typeof z]))return E",g:"E.push(n)"}),Et=st?function(n){return h(n)?bt.enumPrototypes&&typeof n=="function"||bt.nonEnumArgs&&n.length&&g(n)?jt(n):st(n):[]}:jt,U={a:"g,e,K",i:"e=e&&typeof K=='undefined'?e:d(e,K,3)",b:"typeof u=='number'",v:Et,g:"if(e(t[n],n,g)===false)return E"},pt={a:"z,H,l",i:"var a=arguments,b=0,c=typeof l=='number'?2:a.length;while(++b<c){t=a[b];if(t&&B[typeof t]){",v:Et,g:"if(typeof E[n]=='undefined')E[n]=t[n]",c:"}}"},wt={i:"if(!B[typeof t])return E;"+U.i,b:false},_t=p(U),xt=p(pt,{i:pt.i.replace(";",";if(c>3&&typeof a[c-2]=='function'){var e=d(a[--c-1],a[c--],2)}else if(c>2&&typeof a[c-1]=='function'){e=a[--c]}"),g:"E[n]=e?e(E[n],t[n]):t[n]"}),Ot=p(U,wt,{j:false}),St=p(U,wt);
 y(/x/)&&(y=function(n){return typeof n=="function"&&"[object Function]"==tt.call(n)}),r.assign=xt,r.bind=w,r.createCallback=function(n,t,e){var r=typeof n;if(null==n||"function"==r)return c(n,t,e);if("object"!=r)return O(n);var o=Et(n),u=o[0],a=n[u];return 1!=o.length||a!==a||h(a)?function(t){for(var e=o.length,r=false;e--&&(r=l(t[o[e]],n[o[e]],null,true)););return r}:function(n){return n=n[u],a===n&&(0!==a||1/a==1/n)}},r.filter=b,r.forEach=d,r.forIn=Ot,r.forOwn=St,r.keys=Et,r.map=m,r.property=O,r.collect=m,r.each=d,r.extend=xt,r.select=b,r.clone=function(n,t,e,r){return typeof t!="boolean"&&null!=t&&(r=e,e=t,t=false),u(n,t,typeof e=="function"&&c(e,r,1))
 },r.identity=_,r.isArguments=g,r.isArray=mt,r.isFunction=y,r.isObject=h,r.isString=v,r.noop=x,r.random=function(n,t,e){var r=null==n,o=null==t;return null==e&&(typeof n=="boolean"&&o?(e=n,n=1):o||typeof t!="boolean"||(e=t,o=true)),r&&o&&(t=1),n=+n||0,o?(t=n,n=0):t=+t||0,e||n%1||t%1?(e=yt(),gt(n+e*(t-n+parseFloat("1e-"+((e+"").length-1))),t)):n+rt(yt()*(t-n+1))},r.reduce=j,r.some=E,r.any=E,r.foldl=j,r.inject=j,r.VERSION="2.4.1",W&&Q&&(W._=r)}).call(this);
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],9:[function(require,module,exports){
+(function (global){
+/*!
+ * Knot.js 1.0.1 - A browser-based emitter, for tying together event handlers.
+ * Copyright (c) 2016 Michael Cavalea - https://github.com/callmecavs/knot
+ * License: MIT
+ */
+!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var n;n="undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof self?self:this,n.Knot=e()}}(function(){return function e(n,t,r){function o(u,i){if(!t[u]){if(!n[u]){var s="function"==typeof require&&require;if(!i&&s)return s(u,!0);if(f)return f(u,!0);var a=new Error("Cannot find module '"+u+"'");throw a.code="MODULE_NOT_FOUND",a}var c=t[u]={exports:{}};n[u][0].call(c.exports,function(e){var t=n[u][1][e];return o(t?t:e)},c,c.exports,e,n,t,r)}return t[u].exports}for(var f="function"==typeof require&&require,u=0;u<r.length;u++)o(r[u]);return o}({1:[function(e,n,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t["default"]=function(){var e=arguments.length<=0||void 0===arguments[0]?{}:arguments[0];return e.events={},e.on=function(n,t){return e.events[n]=e.events[n]||[],e.events[n].push(t),e},e.once=function(n,t){return t._once=!0,e.on(n,t),e},e.off=function(n,t){return 2===arguments.length?e.events[n].splice(e.events[n].indexOf(t),1):delete e.events[n],e},e.emit=function(n){for(var t=arguments.length,r=Array(t>1?t-1:0),o=1;t>o;o++)r[o-1]=arguments[o];var f=e.events[n]&&e.events[n].slice();return f&&f.forEach(function(t){t._once&&e.off(n,t),t.apply(e,r)}),e},e},n.exports=t["default"]},{}]},{},[1])(1)});
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}]},{},[1])(1)
 });

@@ -2,6 +2,24 @@ var _ = require('./util');
 var factory = require('./creature.js');
 var display = require('./display.js');
 var dom = require('./dom.js');
+var knot = require('knot.js');
+
+
+/*
+Events:
+
+  grid
+  dead
+  end
+  step
+  beforeDraw
+  afterDraw
+  stop
+  destory
+
+*/
+
+
 
 /**
  * Terrarium constructor function
@@ -39,6 +57,8 @@ function Terrarium (width, height, options) {
   this.nextFrame = false;
   this.hasChanged = false;
   this.getNeighborCoords = _.getNeighborCoordsFn(width, height, neighborhood === 'vonneumann', options.periodic);
+
+  this.knot = knot(this);
 }
 
 /**
@@ -61,7 +81,11 @@ Terrarium.prototype.makeGrid = function (content) {
         undefined
       ));
     }
-  } return grid;
+  }
+
+  this.knot.emit('grid', grid);
+
+  return grid;
 };
 
 /**
@@ -75,7 +99,11 @@ Terrarium.prototype.makeGridWithDistribution = function (distribution) {
     for (var y = 0, _h = this.height; y < _h; y++) {
       grid[x].push(factory.make(_.pickRandomWeighted(distribution)));
     }
-  } return grid;
+  }
+
+  this.knot.emit('grid', grid);
+
+  return grid;
 };
 
 /**
@@ -84,12 +112,20 @@ Terrarium.prototype.makeGridWithDistribution = function (distribution) {
  * @return {grid}     a new grid after <steps> || 1 steps
  */
 Terrarium.prototype.step = function (steps) {
+  var terrarium = this;
+  var totalDead = 0;
+
   function copyAndRemoveInner (origCreature) {
     if (origCreature) {
       var copy = _.assign(new (origCreature.constructor)(), origCreature);
       var dead = copy && copy.isDead();
       if (dead && !self.hasChanged) self.hasChanged = true;
       copy.age++;
+
+      if (dead) {
+        totalDead++;
+        terrarium.knot.emit('dead', copy);
+      }
 
       return !dead ? copy : false;
     } else return false;
@@ -199,8 +235,13 @@ Terrarium.prototype.step = function (steps) {
     // Choose a winner from each of the eigenGrid's superpositions
     _.each(eigenGrid, pickWinner);
 
-    if (!this.hasChanged) return false;
+    if (!this.hasChanged) {
+      this.knot.emit('end');
+      return false;
+    }
   }
+
+  this.knot.emit('step', totalDead);
 
   return newGrid;
 };
@@ -209,7 +250,11 @@ Terrarium.prototype.step = function (steps) {
  * Updates the canvas to reflect the current grid
  */
 Terrarium.prototype.draw = function () {
+  this.knot.emit('beforeDraw');
+
   display(this.canvas, this.grid, this.cellSize, this.trails, this.background);
+
+  this.knot.emit('afterDraw');
 };
 
 /**
@@ -247,6 +292,8 @@ Terrarium.prototype.animate = function (steps, fn) {
 Terrarium.prototype.stop = function () {
   cancelAnimationFrame(this.nextFrame);
   this.nextFrame = false;
+
+  this.knot.emit('stop');
 };
 
 /**
@@ -256,6 +303,8 @@ Terrarium.prototype.destroy = function () {
   var canvas = this.canvas;
   this.stop();
   canvas.parentNode.removeChild(canvas);
+
+  this.knot.emit('destroy');
 };
 
 module.exports = Terrarium;

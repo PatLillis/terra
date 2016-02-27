@@ -29,6 +29,6 @@
     "gulpfile.js"
   ],
   "dependencies": {
-    "seedrandom": "~2.3.6"
+    "seedrandom": "2.3.6"
   }
 }
