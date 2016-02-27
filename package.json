@@ -2,7 +2,7 @@
   "name": "terra",
   "version": "1.5.2-beta",
   "description": "A JavaScript library for simple biological simulations and cellular automata.",
-  "main": "dist/terra.min.js",
+  "main": "dist/terra.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
